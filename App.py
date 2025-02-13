@@ -11,7 +11,7 @@ st.set_page_config(page_title="Portfolio Allocation Dashboard", page_icon=":char
 st.sidebar.header("Portfolio Settings")
 
 # Asset Selection
-default_assets = ["SPY", "IWM", "GDX", "BTC-USD", "TLT"] # Added TLT as default
+default_assets = ["SPY", "IWM", "GDX", "BTC-USD", "TLT"]
 selected_assets = st.sidebar.multiselect(
     "Select Assets (Max 5)",
     default_assets,
@@ -79,19 +79,18 @@ else:
                 data = si.get_data(ticker=ticker, start_date=start, end_date=end)
                 if data is None or data.empty or 'adjclose' not in data.columns:
                     st.error(f"Data issue for {ticker}. Please check ticker/timeframe.")
-                    return None  # Signal data fetch failure for this ticker
+                    return None
                 all_data[ticker] = data['adjclose']
             except Exception as e:
                 st.error(f"Error fetching data for {ticker}: {e}")
-                return None # Signal data fetch failure
+                return None
 
-        if not all_data: # If all tickers failed
+        if not all_data:
             return None
         combined_data = pd.DataFrame(all_data)
-        st.write("### Fetched Data (before return from fetch_historical_data):") # DEBUG
-        st.write(combined_data) # DEBUG
+        st.write("### Fetched Data:")  # Debugging output
+        st.write(combined_data)  # Debugging output
         return combined_data
-
 
     data_df = fetch_historical_data(selected_assets, start_date, end_date)
 
@@ -100,12 +99,14 @@ else:
     elif data_df.empty:
         st.error("No data available for the selected assets and timeframe.")
     else:
-        data_df.columns = selected_assets # Ensure column names are set
-        st.write("### Data DataFrame (data_df):") # DEBUG
-        st.write(data_df) # DEBUG
+        data_df.columns = selected_assets
 
-        # --- Portfolio Calculation ---
-        portfolio_value = pd.DataFrame(index=data_df.index)
+        # --- Portfolio Calculation (Corrected using returns) ---
+        asset_returns = data_df.pct_change().dropna() # Calculate daily returns
+        st.write("### Asset Returns:") # Debugging output
+        st.write(asset_returns) # Debugging output
+
+        portfolio_value = pd.DataFrame(index=asset_returns.index)
         portfolio_value['Portfolio'] = 0.0
 
         total_weight = sum(asset_weights.values())
@@ -120,17 +121,19 @@ else:
                     normalized_weights[asset] = 1.0 / num_assets
 
         initial_investment = 10000
+        portfolio_value['Portfolio'].iloc[0] = initial_investment # Initialize portfolio value
 
-        for asset in selected_assets:
-            if asset in normalized_weights:
-                weight_percentage = normalized_weights[asset]
-                portfolio_value['Portfolio'] += data_df[asset] * weight_percentage
+        # Calculate portfolio value day by day using returns
+        for i in range(1, len(portfolio_value)):
+            daily_portfolio_return = 0
+            for asset in selected_assets:
+                if asset in normalized_weights:
+                    daily_portfolio_return += asset_returns[asset].iloc[i-1] * normalized_weights[asset]
+            portfolio_value['Portfolio'].iloc[i] = portfolio_value['Portfolio'].iloc[i-1] * (1 + daily_portfolio_return)
 
-        first_day_portfolio_value = portfolio_value['Portfolio'].iloc[0]
-        portfolio_value['Portfolio'] = (portfolio_value['Portfolio'] / first_day_portfolio_value) * initial_investment
+        st.write("### Portfolio Value:") # Debugging output
+        st.write(portfolio_value) # Debugging output
 
-        st.write("### Portfolio Value DataFrame (portfolio_value):") # DEBUG
-        st.write(portfolio_value) # DEBUG
 
         # --- Plotting ---
         fig = px.line(portfolio_value, x=portfolio_value.index, y='Portfolio',
@@ -141,9 +144,6 @@ else:
         # --- Performance Metrics ---
         st.subheader("Portfolio Performance Metrics")
         returns = portfolio_value['Portfolio'].pct_change().dropna()
-        st.write("### Returns Series (returns):") # DEBUG
-        st.write(returns) # DEBUG
-
 
         cumulative_return = (portfolio_value['Portfolio'].iloc[-1] / portfolio_value['Portfolio'].iloc[0]) - 1 if not portfolio_value.empty else 0
         annual_return = (1 + cumulative_return)**(252/len(returns)) - 1 if len(returns) > 0 else 0
