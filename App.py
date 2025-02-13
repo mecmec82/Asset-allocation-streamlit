@@ -1,5 +1,6 @@
 import streamlit as st
-import yfinance as yf
+# import yfinance as yf  # Removed yfinance
+import yahoo_fin.stock_info as si  # Imported yahoo_fin
 import pandas as pd
 import plotly.express as px
 from datetime import date, timedelta
@@ -73,20 +74,35 @@ else:
         # --- Data Fetching ---
         @st.cache_data  # Cache data for performance
         def fetch_historical_data(tickers, start, end):
-            try:
-                data = yf.download(tickers, start=start, end=end)
-                if data is None: # yf.download can return None in some error cases
-                    return None
-                if data.empty:
-                    return pd.DataFrame() # Return empty DataFrame explicitly
-                if 'Adj Close' not in data.columns:
-                    st.error(f"Data fetched, but 'Adj Close' column is missing. Columns received: {list(data.columns)}") # More specific error
-                    return pd.DataFrame() # Return empty DataFrame to prevent further errors
-                return data['Adj Close'] # Only return 'Adj Close' if all is good
+            all_data = {} # Dictionary to store data for each ticker
+            for ticker in tickers:
+                try:
+                    # Use yahoo_fin.stock_info.get_data
+                    data = si.get_data(ticker=ticker, start_date=start, end_date=end)
+                    if data is None: # yahoo_fin get_data can return None in some error cases
+                        st.error(f"No data returned from yahoo_fin for ticker: {ticker}")
+                        return None
+                    if data.empty:
+                        st.error(f"Empty data received from yahoo_fin for ticker: {ticker}")
+                        return pd.DataFrame()
 
-            except Exception as e:
-                st.error(f"Error fetching data from yfinance: {e}") # More informative error
-                return None # Indicate an error occurred
+                    # yahoo_fin returns 'adjclose' in lowercase
+                    if 'adjclose' not in data.columns:
+                        st.error(f"Data fetched for {ticker}, but 'adjclose' column is missing. Columns received: {list(data.columns)}")
+                        return pd.DataFrame()
+                    all_data[ticker] = data['adjclose'] # Store 'adjclose' for each ticker
+
+                except Exception as e:
+                    st.error(f"Error fetching data from yahoo_fin for ticker {ticker}: {e}")
+                    return None
+
+            if not all_data: # If no data was fetched for any ticker
+                return pd.DataFrame() # Return empty DataFrame
+
+            combined_data = pd.DataFrame(all_data) # Combine dataframes into one
+            combined_data.columns = tickers # Rename columns to tickers (optional, but cleaner)
+            return combined_data
+
 
         try:
             data = fetch_historical_data(selected_assets, start_date, end_date)
