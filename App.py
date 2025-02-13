@@ -13,10 +13,10 @@ st.sidebar.header("Portfolio Settings")
 # Asset Selection
 default_assets = ["SPY", "QQQ", "GLD", "BTC-USD", "TLT"] # Added TLT as default
 selected_assets = st.sidebar.multiselect(
-    "Select Assets (Max 4)",
+    "Select Assets (Max 5)",
     default_assets,
     default=default_assets,
-    max_selections=4
+    max_selections=5
 )
 
 # Timeframe Selection
@@ -34,13 +34,15 @@ if selected_assets:
     for i, asset in enumerate(selected_assets):
         default_weight = 0
         if i == 0:
-            default_weight = 40
+            default_weight = 20
         elif i == 1:
-            default_weight = 30
+            default_weight = 20
         elif i == 2:
             default_weight = 20
         elif i == 3:
-            default_weight = 10
+            default_weight = 20
+        elif i == 4:
+            default_weight = 20
 
         weight = st.sidebar.number_input(
             f"{asset} Weight (%)",
