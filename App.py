@@ -11,7 +11,7 @@ st.set_page_config(page_title="Portfolio Allocation Dashboard", page_icon=":char
 st.sidebar.header("Portfolio Settings")
 
 # Asset Selection
-default_assets = ["SPY", "QQQ", "GLD", "BTC-USD"]
+default_assets = ["SPY", "QQQ", "GLD", "BTC-USD", "TLT"] # Added TLT as default
 selected_assets = st.sidebar.multiselect(
     "Select Assets (Max 4)",
     default_assets,
@@ -85,7 +85,10 @@ else:
 
         if not all_data: # If all tickers failed
             return None
-        return pd.DataFrame(all_data)
+        combined_data = pd.DataFrame(all_data)
+        st.write("### Fetched Data (before return from fetch_historical_data):") # DEBUG
+        st.write(combined_data) # DEBUG
+        return combined_data
 
 
     data_df = fetch_historical_data(selected_assets, start_date, end_date)
@@ -96,6 +99,8 @@ else:
         st.error("No data available for the selected assets and timeframe.")
     else:
         data_df.columns = selected_assets # Ensure column names are set
+        st.write("### Data DataFrame (data_df):") # DEBUG
+        st.write(data_df) # DEBUG
 
         # --- Portfolio Calculation ---
         portfolio_value = pd.DataFrame(index=data_df.index)
@@ -110,7 +115,7 @@ else:
             num_assets = len(selected_assets)
             if num_assets > 0:
                 for asset in selected_assets:
-                    normalized_weights[asset] = 1.0 / num_assets # Normalize to sum to 1
+                    normalized_weights[asset] = 1.0 / num_assets
 
         initial_investment = 10000
 
@@ -122,6 +127,9 @@ else:
         first_day_portfolio_value = portfolio_value['Portfolio'].iloc[0]
         portfolio_value['Portfolio'] = (portfolio_value['Portfolio'] / first_day_portfolio_value) * initial_investment
 
+        st.write("### Portfolio Value DataFrame (portfolio_value):") # DEBUG
+        st.write(portfolio_value) # DEBUG
+
         # --- Plotting ---
         fig = px.line(portfolio_value, x=portfolio_value.index, y='Portfolio',
                       title=f'Portfolio Performance ({start_date.strftime("%Y-%m-%d")} to {end_date.strftime("%Y-%m-%d")})',
@@ -131,6 +139,9 @@ else:
         # --- Performance Metrics ---
         st.subheader("Portfolio Performance Metrics")
         returns = portfolio_value['Portfolio'].pct_change().dropna()
+        st.write("### Returns Series (returns):") # DEBUG
+        st.write(returns) # DEBUG
+
 
         cumulative_return = (portfolio_value['Portfolio'].iloc[-1] / portfolio_value['Portfolio'].iloc[0]) - 1 if not portfolio_value.empty else 0
         annual_return = (1 + cumulative_return)**(252/len(returns)) - 1 if len(returns) > 0 else 0
@@ -142,10 +153,10 @@ else:
         drawdown = portfolio_value['Portfolio'] / rolling_max - 1.0
         max_drawdown = drawdown.min() if not drawdown.empty else 0
 
-        col1, col2, col3, col4 = st.columns(4) # Added one more column for drawdown
+        col1, col2, col3, col4 = st.columns(4)
         col1.metric("Cumulative Return", f"{cumulative_return*100:.2f}%" if not pd.isna(cumulative_return) else "NaN")
         col2.metric("Annualized Return", f"{annual_return*100:.2f}%" if not pd.isna(annual_return) else "NaN")
         col3.metric("Volatility (Std Dev)", f"{stdev*100:.2f}%" if not pd.isna(stdev) else "NaN")
-        col4.metric("Max Drawdown", f"{max_drawdown*100:.2f}%" if not pd.isna(max_drawdown) else "NaN") # Display drawdown
+        col4.metric("Max Drawdown", f"{max_drawdown*100:.2f}%" if not pd.isna(max_drawdown) else "NaN")
 
         st.write(f"Sharpe Ratio (assuming risk-free rate of 0): **{sharpe_ratio:.2f}**" if not pd.isna(sharpe_ratio) else f"Sharpe Ratio (assuming risk-free rate of 0): **NaN**")
