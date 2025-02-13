@@ -11,7 +11,7 @@ st.set_page_config(page_title="Portfolio Allocation Dashboard", page_icon=":char
 st.sidebar.header("Portfolio Settings")
 
 # Asset Selection
-default_assets = ["SPY", "QQQ", "GLD", "BTC-USD", "TLT"] # Added TLT as default
+default_assets = ["SPY", "IWM", "GDX", "BTC-USD", "TLT"] # Added TLT as default
 selected_assets = st.sidebar.multiselect(
     "Select Assets (Max 5)",
     default_assets,
