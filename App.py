@@ -12,11 +12,10 @@ st.sidebar.header("Portfolio Settings")
 
 # Asset Selection
 default_assets = ["SPY", "QQQ", "GLD", "BTC-USD", "TLT"] # Added TLT as default
-default_selected_assets = default_assets[:4] # Take only the first 4 as default
 selected_assets = st.sidebar.multiselect(
     "Select Assets (Max 4)",
     default_assets,
-    default=default_selected_assets, # Use the first 4 as default now
+    default=default_assets,
     max_selections=4
 )
 
