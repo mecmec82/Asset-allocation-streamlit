@@ -73,13 +73,27 @@ else:
         # --- Data Fetching ---
         @st.cache_data  # Cache data for performance
         def fetch_historical_data(tickers, start, end):
-            data = yf.download(tickers, start=start, end=end)['Adj Close']
-            return data
+            try:
+                data = yf.download(tickers, start=start, end=end)
+                if data is None: # yf.download can return None in some error cases
+                    return None
+                if data.empty:
+                    return pd.DataFrame() # Return empty DataFrame explicitly
+                if 'Adj Close' not in data.columns:
+                    st.error(f"Data fetched, but 'Adj Close' column is missing. Columns received: {list(data.columns)}") # More specific error
+                    return pd.DataFrame() # Return empty DataFrame to prevent further errors
+                return data['Adj Close'] # Only return 'Adj Close' if all is good
+
+            except Exception as e:
+                st.error(f"Error fetching data from yfinance: {e}") # More informative error
+                return None # Indicate an error occurred
 
         try:
             data = fetch_historical_data(selected_assets, start_date, end_date)
 
-            if data.empty:
+            if data is None: # Handle None return from fetch_historical_data indicating a fetch error
+                st.error("Failed to retrieve data. Please check asset tickers and internet connection.")
+            elif data.empty: # Handle empty DataFrame explicitly
                 st.error("No data found for the selected assets and timeframe. Please check asset tickers or timeframe.")
             else:
                 # --- Portfolio Calculation ---
@@ -132,5 +146,7 @@ else:
 
 
         except Exception as e:
-            st.error(f"An error occurred: {e}")
-            st.error("Please ensure asset tickers are correct and there is data available for the selected timeframe.")
+            # This outer try-except is likely redundant now with error handling in fetch_historical_data
+            # but keeping it for a general fallback in case of unexpected errors elsewhere in the main flow.
+            st.error(f"An unexpected error occurred: {e}")
+            st.error("Please try again or contact support if the issue persists.")
