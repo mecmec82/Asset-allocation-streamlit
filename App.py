@@ -71,8 +71,8 @@ else:
         if not all_data:
             return None
         combined_data = pd.DataFrame(all_data)
-        st.write("### Fetched Data:")  # Debugging output
-        st.write(combined_data)  # Debugging output
+        #st.write("### Fetched Data:")  # Debugging output
+        #st.write(combined_data)  # Debugging output
         return combined_data
 
     data_df = fetch_historical_data(asset_tickers, start_date, end_date)
@@ -86,8 +86,8 @@ else:
 
         # --- Portfolio Calculation (Corrected using returns) ---
         asset_returns = data_df.pct_change().dropna() # Calculate daily returns
-        st.write("### Asset Returns:") # Debugging output
-        st.write(asset_returns) # Debugging output
+        #st.write("### Asset Returns:") # Debugging output
+        #st.write(asset_returns) # Debugging output
 
         portfolio_value = pd.DataFrame(index=asset_returns.index)
         portfolio_value['Portfolio'] = 0.0
@@ -115,8 +115,8 @@ else:
                     daily_portfolio_return += asset_returns[asset].iloc[i-1] * normalized_weights[asset]
             portfolio_value['Portfolio'].iloc[i] = portfolio_value['Portfolio'].iloc[i-1] * (1 + daily_portfolio_return)
 
-        st.write("### Portfolio Value:") # Debugging output
-        st.write(portfolio_value) # Debugging output
+        #st.write("### Portfolio Value:") # Debugging output
+        #st.write(portfolio_value) # Debugging output
 
 
         # --- Plotting ---
