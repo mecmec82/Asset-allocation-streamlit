@@ -10,14 +10,10 @@ st.set_page_config(page_title="Portfolio Allocation Dashboard", page_icon=":char
 # --- Sidebar ---
 st.sidebar.header("Portfolio Settings")
 
-# Asset Selection
-default_assets = ["SPY", "IWM", "GDX", "BTC-USD", "TLT"]
-selected_assets = st.sidebar.multiselect(
-    "Select Assets (Max 5)",
-    default_assets,
-    default=default_assets,
-    max_selections=5
-)
+# Asset Selection - Fixed to SPY, GLD, BTC
+selected_assets = ["SPY", "GLD", "BTC-USD"] # Fixed assets
+asset_tickers = selected_assets # For data fetching
+asset_names = ["S&P 500 (SPY)", "Gold (GLD)", "Bitcoin (BTC-USD)"] # For display
 
 # Timeframe Selection
 today = date.today()
@@ -25,66 +21,36 @@ default_start_date = today - timedelta(days=5 * 365)
 start_date = st.sidebar.date_input("Start Date", default_start_date)
 end_date = st.sidebar.date_input("End Date", today)
 
-# Portfolio Allocation (Weights) - Using Sliders with Rebalancing
+# Portfolio Allocation - Double-Ended Slider
 st.sidebar.subheader("Allocation Weights (%)")
-asset_weights = {}
+allocation_range = st.sidebar.slider(
+    "SPY / GLD Allocation Range (%)",
+    0.0, 100.0, (40.0, 70.0) # Default range: SPY 40%, GLD (70-40)=30%, BTC (100-70)=30%
+)
 
-if "asset_weights_state" not in st.session_state:
-    st.session_state.asset_weights_state = {asset: 20.0 for asset in default_assets[:len(selected_assets)]} # Initialize with equal weights
+spy_weight = allocation_range[0]
+gld_weight = allocation_range[1] - allocation_range[0]
+btc_weight = 100.0 - allocation_range[1]
 
-if selected_assets:
-    remaining_weight = 100.0
-    weights_assigned = 0.0
-    sliders = {} # To store sliders for potential updates
+asset_weights = {
+    "SPY": spy_weight,
+    "GLD": gld_weight,
+    "BTC-USD": btc_weight
+}
 
-    for i, asset in enumerate(selected_assets):
-        default_weight = st.session_state.asset_weights_state.get(asset, 0.0) # Get from state or default 0
-
-        # Create Slider for each asset
-        weight = st.sidebar.slider(
-            f"{asset} Weight (%)",
-            min_value=0.0,
-            max_value=100.0,
-            value=default_weight,
-            step=1.0,
-            key=f"weight_slider_{asset}", # Unique key for each slider
-        )
-        asset_weights[asset] = weight
-        st.session_state.asset_weights_state[asset] = weight # Update session state
-
-
-    # Rebalance Logic (after all sliders are read)
-    current_total_weight = sum(asset_weights.values())
-    weight_difference = 100.0 - current_total_weight
-
-    if abs(weight_difference) > 1e-6: # Check if difference is significant (avoid tiny floating point errors)
-        num_assets_to_adjust = len(selected_assets)
-        if num_assets_to_adjust > 0:
-            weight_increment = weight_difference / num_assets_to_adjust # Distribute equally for simplicity. Can improve logic.
-
-            for asset in asset_weights:
-                asset_weights[asset] += weight_increment
-                asset_weights[asset] = max(0.0, min(100.0, asset_weights[asset])) # Keep weights within 0-100%
-                st.session_state.asset_weights_state[asset] = asset_weights[asset] # Update session state
-
-
-    # Display current weights (for verification)
-    weights_assigned = sum(asset_weights.values())
-    if weights_assigned > 100:
-        st.sidebar.warning(f"Total allocation exceeds 100%: {weights_assigned:.2f}%. Weights might be slightly adjusted.")
-    elif weights_assigned < 100:
-        st.sidebar.info(f"Total allocation is less than 100%: {weights_assigned:.2f}%. Weights might be slightly adjusted.")
-    else:
-        st.sidebar.success(f"Total allocation is 100%: {weights_assigned:.2f}%")
+# Display Weights (for verification)
+st.sidebar.write(f"**Allocation:**")
+st.sidebar.write(f"- {asset_names[0]}: {spy_weight:.1f}%")
+st.sidebar.write(f"- {asset_names[1]}: {gld_weight:.1f}%")
+st.sidebar.write(f"- {asset_names[2]}: {btc_weight:.1f}%")
+st.sidebar.write(f"**Total: {(spy_weight + gld_weight + btc_weight):.1f}%**")
 
 
 # --- Main Panel ---
-st.title("Portfolio Allocation Performance Dashboard")
-st.write("Visualize portfolio growth based on asset allocations.")
+st.title("Simplified Portfolio Allocation Dashboard")
+st.write("Visualize portfolio growth with SPY, GLD, and BTC allocations using a range slider.")
 
-if not selected_assets:
-    st.warning("Please select at least one asset in the sidebar.")
-elif start_date >= end_date:
+if start_date >= end_date:
     st.error("Error: Start date must be before end date.")
 else:
     # --- Data Fetching ---
@@ -109,14 +75,14 @@ else:
         st.write(combined_data)  # Debugging output
         return combined_data
 
-    data_df = fetch_historical_data(selected_assets, start_date, end_date)
+    data_df = fetch_historical_data(asset_tickers, start_date, end_date)
 
     if data_df is None:
         st.error("Data fetch failed for one or more assets. Check tickers/timeframe.")
     elif data_df.empty:
         st.error("No data available for the selected assets and timeframe.")
     else:
-        data_df.columns = selected_assets
+        data_df.columns = asset_tickers
 
         # --- Portfolio Calculation (Corrected using returns) ---
         asset_returns = data_df.pct_change().dropna() # Calculate daily returns
@@ -127,7 +93,7 @@ else:
         portfolio_value['Portfolio'] = 0.0
 
         normalized_weights = {}
-        total_weight_for_norm = sum(asset_weights.values()) # Use current slider values for normalization
+        total_weight_for_norm = sum(asset_weights.values()) # Use calculated weights for normalization
         if total_weight_for_norm > 0:
              for asset, weight in asset_weights.items():
                  normalized_weights[asset] = weight / total_weight_for_norm
