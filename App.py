@@ -11,7 +11,7 @@ st.set_page_config(page_title="Portfolio Allocation Dashboard", page_icon=":char
 st.sidebar.header("Portfolio Settings")
 
 # Asset Selection
-default_assets = ["SPY", "QQQ", "GLD", "BTC-USD", "TLT"]
+default_assets = ["SPY", "IWM", "GDX", "BTC-USD", "TLT"]
 selected_assets = st.sidebar.multiselect(
     "Select Assets (Max 5)",
     default_assets,
@@ -25,41 +25,58 @@ default_start_date = today - timedelta(days=5 * 365)
 start_date = st.sidebar.date_input("Start Date", default_start_date)
 end_date = st.sidebar.date_input("End Date", today)
 
-# Portfolio Allocation (Weights)
+# Portfolio Allocation (Weights) - Using Sliders with Rebalancing
 st.sidebar.subheader("Allocation Weights (%)")
 asset_weights = {}
-if selected_assets:
-    remaining_weight = 100
-    weights_assigned = 0
-    for i, asset in enumerate(selected_assets):
-        default_weight = 0
-        if i == 0:
-            default_weight = 20
-        elif i == 1:
-            default_weight = 20
-        elif i == 2:
-            default_weight = 20
-        elif i == 3:
-            default_weight = 20
-        elif i == 4:
-            default_weight = 20
 
-        weight = st.sidebar.number_input(
+if "asset_weights_state" not in st.session_state:
+    st.session_state.asset_weights_state = {asset: 20.0 for asset in default_assets[:len(selected_assets)]} # Initialize with equal weights
+
+if selected_assets:
+    remaining_weight = 100.0
+    weights_assigned = 0.0
+    sliders = {} # To store sliders for potential updates
+
+    for i, asset in enumerate(selected_assets):
+        default_weight = st.session_state.asset_weights_state.get(asset, 0.0) # Get from state or default 0
+
+        # Create Slider for each asset
+        weight = st.sidebar.slider(
             f"{asset} Weight (%)",
             min_value=0.0,
             max_value=100.0,
-            value=float(default_weight),
+            value=default_weight,
             step=1.0,
-            format="%.1f"
+            key=f"weight_slider_{asset}", # Unique key for each slider
         )
         asset_weights[asset] = weight
-        weights_assigned += weight
-        remaining_weight -= weight
+        st.session_state.asset_weights_state[asset] = weight # Update session state
 
+
+    # Rebalance Logic (after all sliders are read)
+    current_total_weight = sum(asset_weights.values())
+    weight_difference = 100.0 - current_total_weight
+
+    if abs(weight_difference) > 1e-6: # Check if difference is significant (avoid tiny floating point errors)
+        num_assets_to_adjust = len(selected_assets)
+        if num_assets_to_adjust > 0:
+            weight_increment = weight_difference / num_assets_to_adjust # Distribute equally for simplicity. Can improve logic.
+
+            for asset in asset_weights:
+                asset_weights[asset] += weight_increment
+                asset_weights[asset] = max(0.0, min(100.0, asset_weights[asset])) # Keep weights within 0-100%
+                st.session_state.asset_weights_state[asset] = asset_weights[asset] # Update session state
+
+
+    # Display current weights (for verification)
+    weights_assigned = sum(asset_weights.values())
     if weights_assigned > 100:
-        st.sidebar.warning("Total allocation exceeds 100%. Please adjust.")
+        st.sidebar.warning(f"Total allocation exceeds 100%: {weights_assigned:.2f}%. Weights might be slightly adjusted.")
     elif weights_assigned < 100:
-        st.sidebar.info(f"Consider adjusting weights. Current total: {weights_assigned}%")
+        st.sidebar.info(f"Total allocation is less than 100%: {weights_assigned:.2f}%. Weights might be slightly adjusted.")
+    else:
+        st.sidebar.success(f"Total allocation is 100%: {weights_assigned:.2f}%")
+
 
 # --- Main Panel ---
 st.title("Portfolio Allocation Performance Dashboard")
@@ -109,16 +126,17 @@ else:
         portfolio_value = pd.DataFrame(index=asset_returns.index)
         portfolio_value['Portfolio'] = 0.0
 
-        total_weight = sum(asset_weights.values())
         normalized_weights = {}
-        if total_weight > 0:
-            for asset, weight in asset_weights.items():
-                normalized_weights[asset] = weight / total_weight
+        total_weight_for_norm = sum(asset_weights.values()) # Use current slider values for normalization
+        if total_weight_for_norm > 0:
+             for asset, weight in asset_weights.items():
+                 normalized_weights[asset] = weight / total_weight_for_norm
         else:
             num_assets = len(selected_assets)
             if num_assets > 0:
                 for asset in selected_assets:
                     normalized_weights[asset] = 1.0 / num_assets
+
 
         initial_investment = 10000
         portfolio_value['Portfolio'].iloc[0] = initial_investment # Initialize portfolio value
